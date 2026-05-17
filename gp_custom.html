@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Controller</title>
+</head>
+
+<body>
+<h2>Controller</h2>
+
+<!-- 見た目そのまま -->
+<button onclick="send('custom1')">〇</button>
+<button onclick="send('custom2')">×</button>
+<button onclick="send('custom3')">□</button>
+<button onclick="send('custom4')">△</button>
+
+<!-- 追加（見た目シンプルのまま） -->
+<button onclick="send('custom5')">L</button>
+<button onclick="send('custom6')">R</button>
+
+<script>
+let ws = new WebSocket("ws://192.168.11.3:8000");
+
+function send(btn){
+    let data = {
+        buttons:{
+            custom1:0,custom2:0,custom3:0,
+            custom4:0,custom5:0,custom6:0
+        }
+    };
+    data.buttons[btn] = 1;
+    ws.send(JSON.stringify(data));
+}
+</script>
+
+</body>
+</html>
