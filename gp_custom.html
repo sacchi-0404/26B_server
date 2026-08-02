@@ -2,35 +2,1280 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Controller</title>
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<meta name="viewport" content="width=852, user-scalable=no">
+
+<title>Gamepad UI for iOS</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+
+body{
+    font-family:'Inter',sans-serif;
+    background-color:#1a202c;
+    color:#e2e8f0;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    width:852px;
+    height:393px;
+
+    margin:0;
+    overflow:hidden;
+
+    transform-origin:top left;
+
+    touch-action:manipulation;
+}
+
+/* 共通 */
+
+.page-container{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    width:100%;
+    height:100%;
+    transition:filter 0.3s ease;
+    position:relative;
+}
+
+.page-container.hidden{
+    display:none;
+}
+
+.page-container.menu-open{
+    filter:blur(5px);
+}
+
+/* 左情報エリア */
+
+.left-info-panel{
+    width:380px;
+    height:350px;
+
+    background:#253041;
+
+    border-radius:24px;
+
+    padding:20px;
+
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+
+    box-shadow:
+        0 10px 15px -3px rgba(0,0,0,0.1),
+        0 4px 6px -2px rgba(0,0,0,0.05);
+}
+
+.info-title{
+    font-size:28px;
+    font-weight:bold;
+    color:#63b3ed;
+    text-shadow:0 0 10px #63b3ed;
+}
+
+.status-card{
+    background:rgba(0,0,0,0.35);
+    border-radius:18px;
+    padding:18px;
+
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+}
+
+.status-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+
+    font-size:22px;
+    font-weight:bold;
+}
+
+.status-label{
+    color:#cbd5e0;
+}
+
+.status-value{
+    min-width:120px;
+    text-align:right;
+}
+
+.controller-box{
+    margin-top:auto;
+
+    background:rgba(0,0,0,0.35);
+
+    border-radius:18px;
+
+    padding:18px;
+
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+
+.controller-title{
+    font-size:18px;
+    color:#63b3ed;
+    font-weight:bold;
+}
+
+#controller-info{
+    font-size:18px;
+    color:#00ffff;
+    font-weight:bold;
+    text-shadow:0 0 8px #00ffff;
+
+    word-break:break-word;
+}
+
+/* ステータス色 */
+
+.text-green-400{
+    color:#00ff66 !important;
+    text-shadow:0 0 8px #00ff66;
+}
+
+.text-red-400{
+    color:#ff4040 !important;
+    text-shadow:0 0 8px #ff4040;
+}
+
+.text-gray-400{
+    color:#cbd5e0 !important;
+}
+
+/* GAMEPAD */
+
+.main-layout{
+    width:830px;
+    height:350px;
+
+    display:flex;
+    gap:20px;
+}
+
+.gamepad-container{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+
+    width:430px;
+    height:350px;
+
+    padding:14px;
+
+    background-color:#2d3748;
+
+    border-radius:24px;
+
+    box-shadow:
+        0 10px 15px -3px rgba(0,0,0,0.1),
+        0 4px 6px -2px rgba(0,0,0,0.05);
+}
+
+.side{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-start;
+    gap:24px;
+    width:160px;
+}
+
+.middle{
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-start;
+    align-items:center;
+    height:100%;
+    width:70px;
+    padding-top:20px;
+}
+
+.stick-base{
+    width:70px;
+    height:70px;
+    background-color:#4a5568;
+    border-radius:50%;
+    position:relative;
+    border:2px solid #1a202c;
+
+    margin-top:40px;
+}
+
+.stick-dot{
+    width:34px;
+    height:34px;
+    background-color:#a0aec0;
+    border-radius:50%;
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    transition:transform 0.05s linear;
+}
+
+.button{
+    width:34px;
+    height:34px;
+    border-radius:50%;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    font-weight:bold;
+
+    border:2px solid #1a202c;
+
+    background-color:#4a5568;
+
+    transition:all 0.1s ease;
+
+    user-select:none;
+
+    color:#ffffff;
+
+    text-shadow:0 0 10px #ffffff;
+
+    font-size:14px;
+}
+
+.button.pressed{
+    transform:scale(0.9);
+
+    background-color:#00ff99;
+
+    color:#000000;
+
+    text-shadow:none;
+
+    box-shadow:0 0 15px #00ff99;
+}
+/* 使用しないボタン */
+.button.disabled{
+
+    background-color:#8b5a5a;
+
+    color:#ffb3b3;
+
+    border-color:#703535;
+
+    opacity:0.7;
+
+}
+
+
+/* 使用しないボタンは押しても緑にしない */
+.button.disabled.pressed{
+
+    transform:none;
+
+    background-color:#8b5a5a;
+
+    color:#ffb3b3;
+
+    text-shadow:none;
+
+    box-shadow:none;
+
+}
+
+.d-pad{
+    display:grid;
+    grid-template-columns:repeat(3,26px);
+    grid-template-rows:repeat(3,26px);
+    gap:2px;
+}
+
+.d-pad .button{
+    width:26px;
+    height:26px;
+    border-radius:4px;
+    font-size:12px;
+}
+
+#d-up{grid-column:2;grid-row:1;}
+#d-left{grid-column:1;grid-row:2;}
+#d-right{grid-column:3;grid-row:2;}
+#d-down{grid-column:2;grid-row:3;}
+
+.action-buttons{
+    display:grid;
+    grid-template-columns:repeat(3,34px);
+    grid-template-rows:repeat(3,34px);
+    gap:4px;
+}
+
+#btn-tri{grid-column:2;grid-row:1;}
+#btn-sq{grid-column:1;grid-row:2;}
+#btn-cir{grid-column:3;grid-row:2;}
+#btn-cro{grid-column:2;grid-row:3;}
+
+.shoulder-buttons{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:6px;
+    width:140px;      /* 左右同じ幅 */
+}
+
+.bumper,
+.trigger{
+    width:60px;
+    height:32px;
+    padding:0;
+    border-radius:8px;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    position:relative;
+    overflow:hidden;
+}
+
+.trigger-bar{
+    position:absolute;
+    bottom:0;
+    left:0;
+    width:100%;
+    background-color:#63b3ed;
+    height:0;
+    transition:height 0.1s linear;
+}
+
+.system-buttons{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+
+.system-buttons .button{
+    width:40px;
+    height:24px;
+    border-radius:8px;
+    font-size:9px;
+}
+
+/* MENU */
+
+#menu-icon{
+    position:fixed;
+    top:20px;
+    left:20px;
+    z-index:1001;
+    cursor:pointer;
+    width:30px;
+    height:22px;
+}
+
+#menu-icon span{
+    display:block;
+    position:absolute;
+    height:3px;
+    width:100%;
+    background:#ffffff;
+    border-radius:3px;
+    left:0;
+    transition:.25s ease-in-out;
+    box-shadow:0 0 8px #ffffff;
+}
+
+#menu-icon span:nth-child(1){top:0;}
+
+#menu-icon span:nth-child(2),
+#menu-icon span:nth-child(3){top:9px;}
+
+#menu-icon span:nth-child(4){top:18px;}
+
+#menu-icon.open span:nth-child(1),
+#menu-icon.open span:nth-child(4){
+    top:9px;
+    width:0%;
+    left:50%;
+}
+
+#menu-icon.open span:nth-child(2){
+    transform:rotate(45deg);
+}
+
+#menu-icon.open span:nth-child(3){
+    transform:rotate(-45deg);
+}
+
+#side-menu{
+    position:fixed;
+    top:0;
+    left:-370px;
+    width:320px;
+    height:100%;
+    background:#2d3748;
+    padding:24px;
+    z-index:1000;
+    transition:left 0.4s ease-in-out;
+    box-shadow:2px 0 10px rgba(0,0,0,0.5);
+    overflow-y:auto;
+}
+
+#side-menu.open{
+    left:0;
+}
+
+#overlay{
+    position:fixed;
+    top:0;
+    left:0;
+    width:100vw;
+    height:100vh;
+    background:rgba(0,0,0,0.6);
+    z-index:999;
+    display:none;
+}
+
+#overlay.active{
+    display:block;
+}
+
+.nav-link{
+    display:block;
+    padding:12px 16px;
+    margin-bottom:8px;
+    border-radius:8px;
+    cursor:pointer;
+    transition:background-color 0.2s;
+    color:#ffffff;
+    font-weight:bold;
+}
+
+.nav-link:hover{
+    background-color:#4a5568;
+}
+
+.nav-link.active{
+    background-color:#00aaff;
+    box-shadow:0 0 10px #00aaff;
+}
+
+/* CUSTOM BUTTON */
+.custom-controls-container{
+    position:relative;
+}
+
+.lift-buttons{
+    position:absolute;
+    left:50%;
+    bottom:20px;
+    transform:translateX(-50%);
+    display:flex;
+    flex-direction:column;
+    gap:15px;
+}
+
+.lift-buttons .custom-button{
+    width:215px;
+    height:90px;
+}
+.custom-controls-container{
+    display:flex;
+    flex-direction:row;
+    justify-content:center;
+    align-items:center;
+    gap:40px;
+    width:832px;
+    height:373px;
+    padding:10px;
+    background-color:#2d3748;
+    border-radius:24px;
+}
+
+.custom-button-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:20px;
+    width:450px;
+    align-content:start;
+
+    margin-top:-150px;   /* 上へ40px移動 */
+}
+
+.custom-button{
+    width:215px;
+    height:90px;
+    position:relative;
+    background-color:#4a5568;
+    border-radius:16px;
+    border:2px solid #1a202c;
+    transition:all 0.1s ease;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    user-select:none;
+    touch-action:none;
+}
+
+.custom-button.pressed{
+    transform:scale(0.97);
+    background-color:#00ff99;
+    box-shadow:0 0 20px #00ff99;
+}
+
+.custom-button span{
+    font-size:30px;
+    font-weight:bold;
+    color:#ffffff;
+    text-shadow:0 0 12px #ffffff;
+}
+
+.custom-button.pressed span{
+    color:#000000;
+    text-shadow:none;
+}
+
+/* CAMERA */
+
+.camera-container{
+    width:832px;
+    height:373px;
+    background:#2d3748;
+    border-radius:24px;
+    padding:10px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+.camera-stream{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    border-radius:16px;
+    background:black;
+}
+
+h2,h3{
+    color:#63b3ed;
+    text-shadow:0 0 8px #63b3ed;
+}
+
+</style>
 </head>
 
 <body>
-<h2>Controller</h2>
 
-<!-- 見た目そのまま -->
-<button onclick="send('custom1')">〇</button>
-<button onclick="send('custom2')">×</button>
-<button onclick="send('custom3')">□</button>
-<button onclick="send('custom4')">△</button>
+<div id="menu-icon">
+<span></span>
+<span></span>
+<span></span>
+<span></span>
+</div>
 
-<!-- 追加（見た目シンプルのまま） -->
-<button onclick="send('custom5')">L</button>
-<button onclick="send('custom6')">R</button>
+<div id="overlay"></div>
+
+<div id="side-menu">
+
+<h2 class="text-xl font-bold mb-4">メニュー</h2>
+
+<nav id="navigation">
+<a class="nav-link active" data-page="gamepad-page">ゲームパッド</a>
+<a class="nav-link" data-page="custom-controls-page">カスタムコントロール</a>
+<a class="nav-link" data-page="camera-page">カメラ</a>
+</nav>
+
+<hr class="my-4 border-gray-600">
+
+<h3 class="text-lg font-bold mb-2">設定</h3>
+
+<div class="mb-4">
+
+<label for="ws-ip" class="block mb-2 text-sm font-medium">
+WebSocket IP Address:
+</label>
+
+<input
+type="text"
+id="ws-ip"
+class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg block w-full p-2.5">
+
+</div>
+
+<button
+id="reconnect-btn"
+class="w-full text-white bg-blue-600 hover:bg-blue-700 rounded-lg text-sm px-5 py-2.5 text-center">
+再接続
+</button>
+
+</div>
+
+<!-- GAMEPAD PAGE -->
+
+<div id="gamepad-page" class="page-container">
+
+<div class="main-layout">
+
+<!-- 左半分 情報 -->
+
+<div class="left-info-panel">
+
+<div class="info-title">
+SYSTEM STATUS(P2)
+</div>
+
+<div class="status-card">
+
+<div class="status-row">
+<div class="status-label">周期</div>
+<div id="tx-interval" class="status-value text-gray-400">-- Hz</div>
+</div>
+
+<div class="status-row">
+<div class="status-label">Srv Ping</div>
+<div id="ping-value" class="status-value text-gray-400">-- ms</div>
+</div>
+
+<div class="status-row">
+<div class="status-label">MCU Ping</div>
+<div id="mcu-ping-value" class="status-value text-gray-400">-- ms</div>
+</div>
+
+</div>
+
+<div class="controller-box">
+
+<div class="controller-title">
+Controller
+</div>
+
+<div id="controller-info">
+Not Connected
+</div>
+
+</div>
+
+</div>
+
+<!-- 右半分 GAMEPAD -->
+
+<div class="gamepad-container">
+
+<div class="side">
+
+<div class="shoulder-buttons">
+
+<div id="l1" class="button bumper disabled">L1</div>
+
+<div id="l2" class="button trigger disabled">
+<div id="l2-bar" class="trigger-bar"></div>
+L2
+</div>
+
+</div>
+
+<div class="flex items-center gap-3">
+
+<div class="d-pad">
+<div id="d-up" class="button">↑</div>
+<div id="d-left" class="button">←</div>
+<div id="d-right" class="button">→</div>
+<div id="d-down" class="button">↓</div>
+</div>
+
+<div id="left-stick" class="stick-base">
+<div id="left-stick-dot" class="stick-dot"></div>
+</div>
+
+</div>
+</div>
+
+<div class="middle">
+
+<div class="system-buttons">
+<div id="btn-share" class="button disabled">SHR</div>
+<div id="btn-ps" class="button disabled">PS</div>
+<div id="btn-options" class="button disabled">OPT</div>
+</div>
+
+</div>
+
+<div class="side">
+
+<div class="shoulder-buttons">
+
+<div id="r1" class="button bumper disabled">R1</div>
+
+<div id="r2" class="button trigger disabled">
+<div id="r2-bar" class="trigger-bar"></div>
+R2
+</div>
+
+</div>
+
+<div class="flex items-center gap-3">
+
+    <div class="action-buttons">
+        <div id="btn-tri" class="button">▲</div>
+        <div id="btn-sq" class="button">■</div>
+        <div id="btn-cir" class="button disabled">●</div>
+        <div id="btn-cro" class="button">✕</div>
+    </div>
+
+    <div id="right-stick" class="stick-base">
+        <div id="right-stick-dot" class="stick-dot"></div>
+    </div>
+
+</div>
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- CUSTOM PAGE -->
+
+<div id="custom-controls-page" class="page-container hidden">
+
+    <div class="custom-controls-container">
+
+        <div class="custom-button-grid">
+            <div class="custom-button" id="custom-btn-1"><span>ローラー</span></div>
+            <div class="custom-button" id="custom-btn-3"><span>バケツ</span></div>
+        </div>
+
+        <div class="lift-buttons">
+            <div class="custom-button" id="custom-btn-5"><span>昇降↑</span></div>
+            <div class="custom-button" id="custom-btn-6"><span>昇降↓</span></div>
+        </div>
+
+    </div>
+
+</div>
+</div>
+
+<!-- CAMERA PAGE -->
+
+<div id="camera-page" class="page-container hidden">
+
+<div class="camera-container">
+
+<img
+id="camera-stream"
+class="camera-stream"
+src="http://192.168.11.8:81/stream">
+
+</div>
+
+</div>
 
 <script>
-let ws = new WebSocket("ws://192.168.11.3:8000");
 
-function send(btn){
-    let data = {
-        buttons:{
-            custom1:0,custom2:0,custom3:0,
-            custom4:0,custom5:0,custom6:0
+let ws;
+
+let pingIntervalId=null;
+let pingTimeout=null;
+let transmissionTimestamps=[];
+
+let currentGamepad=null;
+
+let customButtonStates=new Array(6).fill(false);
+
+/* =========================
+   ステータス
+========================= */
+
+const statusElements={
+
+    txInterval:[
+        document.getElementById('tx-interval')
+    ],
+
+    pingValue:[
+        document.getElementById('ping-value')
+    ],
+
+    mcuPingValue:[
+        document.getElementById('mcu-ping-value')
+    ]
+};
+
+function updateStatusDisplay(key,value,isWarning){
+
+    statusElements[key].forEach(el=>{
+
+        el.textContent=value;
+
+        el.classList.remove(
+            'text-gray-400',
+            'text-red-400',
+            'text-green-400'
+        );
+
+        if(isWarning){
+
+            el.classList.add('text-red-400');
+
+        }else{
+
+            el.classList.add('text-green-400');
+        }
+    });
+}
+
+/* =========================
+   WebSocket
+========================= */
+
+function connectWebSocket(ip){
+
+    if(!ip)return;
+
+    if(ws && ws.readyState!==WebSocket.CLOSED){
+        ws.close();
+    }
+
+    if(pingIntervalId){
+        clearInterval(pingIntervalId);
+    }
+
+    ws=new WebSocket(`ws://${ip}:9001/`);
+
+    ws.onopen=()=>{
+
+        const info=document.getElementById('controller-info');
+
+        info.textContent="Connected";
+        info.classList.remove('text-red-400');
+        info.classList.add('text-green-400');
+
+        pingIntervalId=setInterval(sendPing,500);
+    };
+
+    ws.onclose=()=>{
+
+        const info=document.getElementById('controller-info');
+
+        info.textContent="Disconnected";
+        info.classList.remove('text-green-400');
+        info.classList.add('text-red-400');
+
+        if(pingIntervalId){
+            clearInterval(pingIntervalId);
         }
     };
-    data.buttons[btn] = 1;
-    ws.send(JSON.stringify(data));
+
+    ws.onerror=()=>{
+
+        const info=document.getElementById('controller-info');
+
+        info.textContent="Connection Error";
+        info.classList.remove('text-green-400');
+        info.classList.add('text-red-400');
+    };
+
+    ws.onmessage=(event)=>{
+
+        try{
+
+            const data=JSON.parse(event.data);
+
+            if(data.type==='pong'){
+
+                clearTimeout(pingTimeout);
+
+                const latency=
+                    performance.now()-data.timestamp;
+
+                updateStatusDisplay(
+                    'pingValue',
+                    latency.toFixed(1)+" ms",
+                    latency>200
+                );
+            }
+
+            else if(data.type==='mcu_ping'){
+
+                if(data.rtt!==null){
+
+                    updateStatusDisplay(
+                        'mcuPingValue',
+                        data.rtt.toFixed(1)+" ms",
+                        data.rtt>50
+                    );
+
+                }else{
+
+                    updateStatusDisplay(
+                        'mcuPingValue',
+                        'Timeout',
+                        true
+                    );
+                }
+            }
+
+        }catch(e){
+
+            console.error(e);
+        }
+    };
 }
+
+function sendPing(){
+
+    if(ws && ws.readyState===WebSocket.OPEN){
+
+        clearTimeout(pingTimeout);
+
+        pingTimeout=setTimeout(()=>{
+
+            updateStatusDisplay(
+                'pingValue',
+                'Timeout',
+                true
+            );
+
+        },200);
+
+        ws.send(JSON.stringify({
+
+            type:'ping',
+            timestamp:performance.now()
+        }));
+    }
+}
+
+/* =========================
+   送信処理
+========================= */
+
+function transmitDataLoop(){
+
+    if(!ws || ws.readyState!==WebSocket.OPEN){
+
+        updateStatusDisplay('txInterval','0 Hz',true);
+
+        return;
+    }
+
+    const now=performance.now();
+
+    transmissionTimestamps.push(now);
+
+    transmissionTimestamps=
+        transmissionTimestamps.filter(t=>now-t<1000);
+
+    updateStatusDisplay(
+        'txInterval',
+        transmissionTimestamps.length.toString()+" Hz",
+        false
+    );
+
+    const gamepadData = {
+
+    buttons: currentGamepad
+        ? currentGamepad.buttons.map((b, i) => ({
+
+            // 送信したいボタンだけ true
+            pressed:
+                [0,2,3,12,13,14,15].includes(i)
+                    ? b.pressed
+                    : false,
+
+            value:
+                [0,2,3,12,13,14,15].includes(i)
+                    ? b.value
+                    : 0
+        }))
+        : [],
+
+    axes: currentGamepad
+        ? currentGamepad.axes
+        : [0,0,0,0],
+
+    customButtons: customButtonStates
+};
+
+    ws.send(JSON.stringify(gamepadData));
+}
+
+/* =========================
+   GAMEPAD VISUAL
+========================= */
+
+function setPressed(id,pressed){
+
+    const el=document.getElementById(id);
+
+    if(!el)return;
+
+    if(pressed){
+        el.classList.add('pressed');
+    }else{
+        el.classList.remove('pressed');
+    }
+}
+
+function moveStick(dotId,x,y){
+
+    const dot=document.getElementById(dotId);
+
+    const maxMove=16;
+
+    const moveX=x*maxMove;
+    const moveY=y*maxMove;
+
+    dot.style.transform=
+        `translate(calc(-50% + ${moveX}px), calc(-50% + ${moveY}px))`;
+}
+
+function updateGamepadVisual(){
+
+    const gamepads=navigator.getGamepads();
+
+    if(!gamepads)return;
+
+    const gp=gamepads[0];
+
+    currentGamepad=gp;
+
+    const info=document.getElementById('controller-info');
+
+    if(!gp){
+
+        info.textContent="Not Connected";
+        info.classList.remove('text-green-400');
+        info.classList.add('text-red-400');
+
+        requestAnimationFrame(updateGamepadVisual);
+        return;
+    }
+
+    info.textContent=gp.id;
+    info.classList.remove('text-red-400');
+    info.classList.add('text-green-400');
+
+    moveStick('left-stick-dot',gp.axes[0],gp.axes[1]);
+    moveStick('right-stick-dot',gp.axes[2],gp.axes[3]);
+
+    setPressed('d-up',gp.buttons[12]?.pressed);
+    setPressed('d-down',gp.buttons[13]?.pressed);
+    setPressed('d-left',gp.buttons[14]?.pressed);
+    setPressed('d-right',gp.buttons[15]?.pressed);
+
+    setPressed('btn-cro',gp.buttons[0]?.pressed);
+    setPressed('btn-cir',gp.buttons[1]?.pressed);
+    setPressed('btn-sq',gp.buttons[2]?.pressed);
+    setPressed('btn-tri',gp.buttons[3]?.pressed);
+
+    setPressed('l1',gp.buttons[4]?.pressed);
+    setPressed('r1',gp.buttons[5]?.pressed);
+
+    const l2=gp.buttons[6]?.value || 0;
+    const r2=gp.buttons[7]?.value || 0;
+
+    document.getElementById('l2-bar').style.height=`${l2*100}%`;
+    document.getElementById('r2-bar').style.height=`${r2*100}%`;
+
+    setPressed('l2',l2>0.1);
+    setPressed('r2',r2>0.1);
+
+    setPressed('btn-share',gp.buttons[8]?.pressed);
+    setPressed('btn-options',gp.buttons[9]?.pressed);
+    setPressed('btn-ps',gp.buttons[16]?.pressed);
+
+    requestAnimationFrame(updateGamepadVisual);
+}
+
+/* =========================
+   カスタムボタン
+========================= */
+
+function setupCustomButtons(){
+
+    for(let i=1;i<=6;i++){
+
+        const button=document.getElementById(`custom-btn-${i}`);
+
+        if(!button) continue;
+
+        const updateState=(isPressed)=>{
+
+            customButtonStates[i-1]=isPressed;
+
+            if(isPressed){
+
+                button.classList.add('pressed');
+
+            }else{
+
+                button.classList.remove('pressed');
+            }
+        };
+
+        button.addEventListener('mousedown',(e)=>{
+            e.preventDefault();
+            updateState(true);
+        });
+
+        button.addEventListener('mouseup',(e)=>{
+            e.preventDefault();
+            updateState(false);
+        });
+
+        button.addEventListener('mouseleave',(e)=>{
+            e.preventDefault();
+            updateState(false);
+        });
+
+        button.addEventListener('touchstart',(e)=>{
+            e.preventDefault();
+            updateState(true);
+        },{passive:false});
+
+        button.addEventListener('touchend',(e)=>{
+            e.preventDefault();
+            updateState(false);
+        },{passive:false});
+
+        button.addEventListener('touchcancel',(e)=>{
+            e.preventDefault();
+            updateState(false);
+        },{passive:false});
+    }
+}
+
+/* =========================
+   UI SCALE
+========================= */
+
+function scaleUI(){
+
+    const targetWidth=852;
+    const targetHeight=393;
+
+    const scale=Math.min(
+        window.innerWidth/targetWidth,
+        window.innerHeight/targetHeight
+    );
+
+    document.body.style.transform=`scale(${scale})`;
+
+    document.body.style.transformOrigin='top left';
+
+    const left=(window.innerWidth-(targetWidth*scale))/2;
+    const top=(window.innerHeight-(targetHeight*scale))/2;
+
+    document.body.style.position='absolute';
+
+    document.body.style.left=`${left}px`;
+    document.body.style.top=`${top}px`;
+}
+
+/* =========================
+   MENU
+========================= */
+
+const menuIcon=document.getElementById('menu-icon');
+const sideMenu=document.getElementById('side-menu');
+const overlay=document.getElementById('overlay');
+
+function toggleMenu(){
+
+    menuIcon.classList.toggle('open');
+
+    sideMenu.classList.toggle('open');
+
+    overlay.classList.toggle('active');
+
+    document.querySelectorAll('.page-container').forEach(c=>{
+        c.classList.toggle('menu-open');
+    });
+}
+
+menuIcon.addEventListener('click',toggleMenu);
+overlay.addEventListener('click',toggleMenu);
+
+const pages={
+    'gamepad-page':document.getElementById('gamepad-page'),
+    'custom-controls-page':document.getElementById('custom-controls-page'),
+    'camera-page':document.getElementById('camera-page')
+};
+
+document.querySelectorAll('#navigation .nav-link').forEach(link=>{
+
+    link.addEventListener('click',()=>{
+
+        const targetPageId=link.dataset.page;
+
+        Object.values(pages).forEach(page=>{
+            page.classList.add('hidden');
+        });
+
+        pages[targetPageId].classList.remove('hidden');
+
+        document.querySelectorAll('#navigation .nav-link').forEach(nav=>{
+            nav.classList.remove('active');
+        });
+
+        link.classList.add('active');
+
+        toggleMenu();
+    });
+});
+
+document.getElementById('reconnect-btn')
+.addEventListener('click',()=>{
+
+    connectWebSocket(
+        document.getElementById('ws-ip').value
+    );
+
+    toggleMenu();
+});
+
+/* =========================
+   START
+========================= */
+
+window.addEventListener("DOMContentLoaded",()=>{
+
+    scaleUI();
+
+    window.addEventListener('resize',scaleUI);
+
+    const currentHost="192.168.11.7";
+
+    document.getElementById('ws-ip').value=currentHost;
+
+    connectWebSocket(currentHost);
+
+    setupCustomButtons();
+
+    window.addEventListener("gamepadconnected",(e)=>{
+        console.log("Gamepad connected:",e.gamepad.id);
+    });
+
+    window.addEventListener("gamepaddisconnected",(e)=>{
+        console.log("Gamepad disconnected:",e.gamepad.id);
+        currentGamepad=null;
+    });
+
+    setInterval(transmitDataLoop,20);
+
+    updateGamepadVisual();
+});
+
 </script>
 
 </body>
