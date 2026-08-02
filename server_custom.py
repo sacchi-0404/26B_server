@@ -1,140 +1,244 @@
+#!/usr/bin/env python3
+"""
+シンプルゲームパッドサーバー
+- iPhoneのUIからWebSocketでゲームパッドデータとPingを受信
+- ゲームパッドデータとカスタムボタンデータをmbedマイクロコントローラーへUDPで転送
+- UIからのPing要求にはPongを応答
+- マイコンとの間でUDP Pingを周期的に計測し、その往復時間(RTT)をUIに通知
+"""
 
-# server.py
-import asyncio
-import websockets
-import socket
-import json
-import pygame
-import struct
+# --- ライブラリのインポート ---
+import asyncio      # 非同期I/O（ネットワーク通信など）を扱うためのライブラリ
+import websockets   # WebSocketサーバーを簡単に構築するためのライブラリ
+import json         # JSON形式のデータを扱うためのライブラリ
+import socket       # IPアドレス取得など低レベルなネットワーク操作のためのライブラリ
+import struct       # Pythonのデータ型をC言語の構造体（バイナリデータ）に変換するためのライブラリ
+import logging      # ログ出力を行うためのライブラリ
+import time         # タイムスタンプ取得など時間関連の操作のためのライブラリ
+from functools import partial # 関数の一部引数を固定した新しい関数を作成するためのユーティリティ
 
-# ===== 設定 =====
-UDP_IP = "192.168.11.20"   # 上位マイコンIP
-UDP_PORT = 5005            # MLRCSのreceivePort
+# --- 全体設定 ---
+SERVER_HOST = "0.0.0.0"       # サーバーが待ち受けるIPアドレス。0.0.0.0は全てのネットワークインターフェースを意味する
+WEBSOCKET_PORT = 9001         # WebSocketサーバーが待ち受けるポート番号
+NUCLEO_IP = "192.168.11.20"   # データ送信先であるマイコンのIPアドレス
+NUCLEO_PORT_TX = 8080         # マイコンへのデータ送信ポート番号
+NUCLEO_PORT_RX = 4000         # マイコンからのデータ受信ポート番号
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+# マイコンと通信する際のパケット種別を定義
+PACKET_TYPE = {"GAMEPAD_DATA": 1, "PING": 2, "PONG": 3}
 
-# ===== PS5初期化 =====
-pygame.init()
-pygame.joystick.init()
+# --- ロガーの設定 ---
+# ログの出力レベルやフォーマットを設定
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-if pygame.joystick.get_count() == 0:
-    print("PS5コントローラーが接続されていません")
-    exit()
+# --- グローバル変数 ---
+# マイコンとのPing往復時間(RTT)を格納するための辞書
+ping_stats = {"last_ping_time": 0, "rtt_ms": None}
+# 接続中の全WebSocketクライアント（UI）を管理するためのセット
+connected_clients = set()
 
-js = pygame.joystick.Joystick(0)
-js.init()
 
-print("PS5コントローラー接続OK")
+def get_local_ip():
+    """
+    このサーバーが動作しているマシンのローカルIPアドレスを取得する関数。
+    UI側でどのIPに接続すればよいかを表示するために使用する。
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # 外部のIPアドレスに接続を試みることで、実際使用されるネットワークインターフェースのIPを取得
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1' # 取得に失敗した場合はローカルホストを返す
+    finally:
+        s.close()
+    return IP
 
-# ===== スマホ用（6ボタン）=====
-smartphone_buttons = {
-    "custom1": 0,
-    "custom2": 0,
-    "custom3": 0,
-    "custom4": 0,
-    "custom5": 0,
-    "custom6": 0
-}
+async def broadcast_ping(rtt):
+    """
+    マイコンとのPing往復時間(RTT)を、接続されている全てのUIクライアントに送信する非同期関数。
+    Args:
+        rtt (float or None): 計測した往復時間(ミリ秒)。タイムアウトした場合はNone。
+    """
+    if connected_clients:
+        message = json.dumps({'type': 'mcu_ping', 'rtt': rtt})
+        # asyncio.gatherを使い、全てのクライアントへの送信処理を並行して効率的に行う
+        await asyncio.gather(*(client.send(message) for client in connected_clients))
 
-# ===== WebSocket受信 =====
-async def handler(websocket):
-    global smartphone_buttons
-    print("スマホ接続OK")
+def send_to_nucleo(gamepad_data, transport):
+    """
+    UIから受信したゲームパッドデータを解析し、マイコン向けのUDPパケットを送信する関数。
+    Args:
+        gamepad_data (dict): UIから送られてきたJSONデータ。
+        transport (asyncio.DatagramTransport): UDP送信用トランスポートオブジェクト。
+    """
+    try:
+        # JSONデータから各値を取得。存在しない場合のデフォルト値も設定。
+        axes = gamepad_data.get('axes', [0.0] * 4)
+        buttons = gamepad_data.get('buttons', [])
+        timestamp = int(time.time() * 1000)
+        axis_data = [int(axis * 1000) for axis in axes[:4]]
+        while len(axis_data) < 4: axis_data.append(0) # 軸データが4つ未満の場合に0で埋める
+        
+        # 通常のコントローラーボタンの状態をビットマスクに変換
+        button_mask = sum(1 << i for i, btn in enumerate(buttons[:17]) if btn.get('pressed'))
+        # UIのカスタムボタンの状態をビットマスクに変換（17ビット目から割り当て）
+        custom_buttons = gamepad_data.get('customButtons', [False] * 6)
+        custom_button_mask = sum(1 << (17 + i) for i, pressed in enumerate(custom_buttons) if pressed)
+        
+        # 2つのビットマスクを合成
+        final_button_mask = button_mask | custom_button_mask
 
-    async for message in websocket:
+        # struct.packを使い、データをリトルエンディアンのバイナリ形式に変換
+        # '<' : リトルエンディアン
+        # 'B' : 符号なしchar (1バイト) - パケット種別
+        # 'I' : 符号なしint (4バイト) - タイムスタンプ
+        # '4h': 符号ありshort (2バイト)が4つ - 軸データ
+        # 'I' : 符号なしint (4バイト) - ボタンマスク
+        packet_data = struct.pack(
+            '<BI4hI',
+            PACKET_TYPE["GAMEPAD_DATA"],
+            timestamp & 0xFFFFFFFF,
+            *axis_data,
+            final_button_mask
+        )
+        # UDPパケットをマイコンに送信
+        transport.sendto(packet_data, (NUCLEO_IP, NUCLEO_PORT_TX))
+    except Exception as e:
+        logger.error(f"マイコンへのデータ送信中にエラーが発生しました: {e}")
+
+async def websocket_handler(websocket, transport):
+    """
+    WebSocketクライアントからの接続を処理するメインの非同期ハンドラ。
+    クライアントが接続するたびに、この関数が実行される。
+    Args:
+        websocket: 接続されたクライアントとの通信用オブジェクト。
+        transport (asyncio.DatagramTransport): UDP送信用トランスポートオブジェクト。
+    """
+    client_ip = websocket.remote_address[0]
+    logger.info(f"クライアントが接続しました: {client_ip}")
+    connected_clients.add(websocket) # 新しいクライアントを管理セットに追加
+    try:
+        # クライアントからメッセージを非同期で待ち受けるループ
+        async for message in websocket:
+            try:
+                data = json.loads(message)
+                # 受信メッセージがPing要求か、それ以外（ゲームパッドデータ）かを判定
+                if data.get('type') == 'ping' and 'timestamp' in data:
+                    # Ping要求なら、タイムスタンプを含んだPongメッセージを返信
+                    pong_message = json.dumps({'type': 'pong', 'timestamp': data['timestamp']})
+                    await websocket.send(pong_message)
+                else:
+                    # ゲームパッドデータなら、マイコンに転送
+                    send_to_nucleo(data, transport)
+            except json.JSONDecodeError:
+                logger.warning(f"JSONではない不正なメッセージを受信しました: {client_ip}")
+            except Exception as e:
+                logger.error(f"メッセージ処理中にエラーが発生しました ({client_ip}): {e}")
+    except websockets.exceptions.ConnectionClosed as e:
+        logger.info(f"クライアントが切断しました: {client_ip} (理由: {e.reason}, コード: {e.code})")
+    finally:
+        logger.info(f"クライアント接続が終了しました: {client_ip}")
+        connected_clients.remove(websocket) # 切断されたクライアントを管理セットから削除
+
+async def run_ping_cycle(transport):
+    """
+    マイコンに対して定期的にUDP Pingを送信し、RTTを計測するバックグラウンドタスク。
+    Args:
+        transport (asyncio.DatagramTransport): UDP送信用トランスポートオブジェクト。
+    """
+    while True:
         try:
-            data = json.loads(message)
-
-            btns = data.get("buttons", {})
-            for k in smartphone_buttons.keys():
-                smartphone_buttons[k] = btns.get(k, 0)
-
-            await websocket.send(json.dumps({"status": "ok"}))
+            current_time = time.time()
+            ping_stats["last_ping_time"] = current_time
+            # パケット種別と送信時刻をバイナリデータとしてパック
+            packet = struct.pack('<Bd', PACKET_TYPE["PING"], current_time)
+            transport.sendto(packet, (NUCLEO_IP, NUCLEO_PORT_TX))
+            
+            await asyncio.sleep(0.5) # 0.5秒待機
+            
+            rtt = ping_stats["rtt_ms"]
+            if rtt is not None:
+                # Pong応答があればRTTをログに出力し、UIにブロードキャスト
+                logger.info(f"{NUCLEO_IP} へのPing RTT: {rtt:.2f} ms")
+                await broadcast_ping(rtt)
+                ping_stats["rtt_ms"] = None # RTTをリセット
+            else:
+                # Pong応答がなければタイムアウトとして処理
+                logger.warning(f"{NUCLEO_IP} へのPing: 応答なし (タイムアウト)")
+                await broadcast_ping(None) # UIにもタイムアウトを通知
 
         except Exception as e:
-            print("WebSocketエラー:", e)
+            logger.error(f"Pingサイクルでエラーが発生しました: {e}")
+            await asyncio.sleep(1) # エラー発生時は少し長く待機
 
-# ===== UDP送信ループ =====
-async def send_loop():
-    while True:
-        pygame.event.pump()
+class UdpProtocol(asyncio.DatagramProtocol):
+    """
+    asyncioのためのUDPプロトコル実装クラス。
+    UDPソケットでのイベント（データ受信など）を処理する。
+    """
+    def connection_made(self, transport):
+        """UDPソケットの準備が完了したときに呼ばれる。"""
+        self.transport = transport
 
-        button_bits = 0
+    def datagram_received(self, data, addr):
+        """UDPデータグラムを受信したときに呼ばれる。"""
+        # 送信元がマイコンで、かつPongパケットであるかを確認
+        if addr[0] == NUCLEO_IP and data and data[0] == PACKET_TYPE["PONG"]:
+            if len(data) >= 9: # パケットサイズが正しいか確認
+                try:
+                    # 受信データから送信時刻をアンパック
+                    _, sent_time = struct.unpack('<Bd', data[:9])
+                    # 現在時刻との差からRTTを計算し、グローバル変数に格納
+                    ping_stats["rtt_ms"] = (time.time() - sent_time) * 1000
+                except struct.error:
+                    logger.warning("不正な形式のPONGパケットを受信しました。")
+    
+    def error_received(self, exc):
+        """データ受信中にエラーが発生したときに呼ばれる。"""
+        logger.error(f"UDP受信エラー: {exc}")
 
-        # ===== フェイスボタン =====
-        if js.get_button(0): button_bits |= (1 << 0)   # CROSS
-        if js.get_button(1): button_bits |= (1 << 1)   # CIRCLE
-        if js.get_button(2): button_bits |= (1 << 2)   # SQUARE
-        if js.get_button(3): button_bits |= (1 << 3)   # TRIANGLE
+    def connection_lost(self, exc):
+        """UDP接続が（何らかの理由で）失われたときに呼ばれる。"""
+        logger.warning("UDP接続が失われました。")
 
-        # ===== 方向キー（D-pad）=====
-        hat = js.get_hat(0)
-        if hat[1] == 1:   button_bits |= (1 << 4)   # UP
-        if hat[1] == -1:  button_bits |= (1 << 5)   # DOWN
-        if hat[0] == -1:  button_bits |= (1 << 6)   # LEFT
-        if hat[0] == 1:   button_bits |= (1 << 7)   # RIGHT
-
-        # ===== ショルダー =====
-        if js.get_button(4): button_bits |= (1 << 8)   # L1
-        if js.get_button(5): button_bits |= (1 << 9)   # R1
-        if js.get_button(6): button_bits |= (1 << 10)  # L2
-        if js.get_button(7): button_bits |= (1 << 11)  # R2
-
-        # ===== スティック押し込み =====
-        if js.get_button(10): button_bits |= (1 << 12) # L3
-        if js.get_button(11): button_bits |= (1 << 13) # R3
-
-        # ===== システム =====
-        if js.get_button(8):  button_bits |= (1 << 14) # SHARE
-        if js.get_button(9):  button_bits |= (1 << 15) # OPTIONS
-        if js.get_button(12): button_bits |= (1 << 16) # PS
-        if js.get_button(13): button_bits |= (1 << 17) # タッチパッド
-
-        # ===== スマホ（後ろ）=====
-        if smartphone_buttons["custom1"]: button_bits |= (1 << 18)
-        if smartphone_buttons["custom2"]: button_bits |= (1 << 19)
-        if smartphone_buttons["custom3"]: button_bits |= (1 << 20)
-        if smartphone_buttons["custom4"]: button_bits |= (1 << 21)
-        if smartphone_buttons["custom5"]: button_bits |= (1 << 22)
-        if smartphone_buttons["custom6"]: button_bits |= (1 << 23)
-
-        # ===== スティック =====
-        axes = [
-            int(js.get_axis(1) * 10000),  # 左スティック上下
-            int(js.get_axis(0) * 10000),  # 左スティック左右
-            int(js.get_axis(2) * 10000),  # 右スティック左右
-            int(js.get_axis(3) * 10000),  # 右スティック上下
-        ]
-
-        # ===== パケット生成 =====
-        packet = struct.pack(
-            "<B I hhhh I",
-            1,              # GAMEPAD_DATA
-            0,              # timestamp
-            axes[0],
-            axes[1],
-            axes[2],
-            axes[3],
-            button_bits
-        )
-
-        # ===== UDP送信 =====
-        sock.sendto(packet, (UDP_IP, UDP_PORT))
-
-        await asyncio.sleep(0.02)  # 50Hz
-
-# ===== メイン =====
 async def main():
-    print("サーバー起動中...")
-    print("WebSocket: ws://0.0.0.0:8765")
-
-    ws_server = await websockets.serve(handler, "0.0.0.0", 8765)
-
-    await asyncio.gather(
-        send_loop(),
-        ws_server.wait_closed()
+    """
+    サーバーを起動するためのメインの非同期関数。
+    """
+    local_ip = get_local_ip()
+    loop = asyncio.get_running_loop()
+    
+    # UDPの送受信を行うためのエンドポイントを作成
+    transport, protocol = await loop.create_datagram_endpoint(
+        lambda: UdpProtocol(),
+        local_addr=(SERVER_HOST, NUCLEO_PORT_RX) 
     )
 
-# ===== 実行 =====
-asyncio.run(main())
+    logger.info("--- サーバーが起動しました ---")
+    logger.info(f"UIからの接続先: ws://{local_ip}:{WEBSOCKET_PORT}")
+    logger.info(f"UDP送信先: {NUCLEO_IP}:{NUCLEO_PORT_TX}, UDP受信ポート: {NUCLEO_PORT_RX}")
+
+    # マイコンへのPing計測タスクをバックグラウンドで開始
+    ping_task = asyncio.create_task(run_ping_cycle(transport))
+    
+    # WebSocketハンドラにUDPトランスポートを渡すため、partialで新しい関数を作成
+    handler_with_transport = partial(websocket_handler, transport=transport)
+    
+    # WebSocketサーバーを起動し、接続を待ち受ける
+    async with websockets.serve(handler_with_transport, SERVER_HOST, WEBSOCKET_PORT, ping_interval=20, ping_timeout=20):
+        # サーバーとPingタスクが終了するまで待機
+        await asyncio.gather(ping_task, asyncio.Future())
+
+if __name__ == "__main__":
+    """
+    このスクリプトが直接実行されたときのエントリーポイント。
+    """
+    try:
+        # 非同期のmain関数を実行
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        # Ctrl+C が押されたらサーバーを正常にシャットダウン
+        logger.info("サーバーをシャットダウンします。")
 
