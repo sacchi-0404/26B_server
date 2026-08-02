@@ -263,34 +263,6 @@ body{
 
     box-shadow:0 0 15px #00ff99;
 }
-/* 使用しないボタン */
-.button.disabled{
-
-    background-color:#8b5a5a;
-
-    color:#ffb3b3;
-
-    border-color:#703535;
-
-    opacity:0.7;
-
-}
-
-
-/* 使用しないボタンは押しても緑にしない */
-.button.disabled.pressed{
-
-    transform:none;
-
-    background-color:#8b5a5a;
-
-    color:#ffb3b3;
-
-    text-shadow:none;
-
-    box-shadow:none;
-
-}
 
 .d-pad{
     display:grid;
@@ -629,7 +601,7 @@ class="w-full text-white bg-blue-600 hover:bg-blue-700 rounded-lg text-sm px-5 p
 <div class="left-info-panel">
 
 <div class="info-title">
-SYSTEM STATUS(P2)
+SYSTEM STATUS(P1)
 </div>
 
 <div class="status-card">
@@ -673,9 +645,9 @@ Not Connected
 
 <div class="shoulder-buttons">
 
-<div id="l1" class="button bumper disabled">L1</div>
+<div id="l1" class="button bumper">L1</div>
 
-<div id="l2" class="button trigger disabled">
+<div id="l2" class="button trigger">
 <div id="l2-bar" class="trigger-bar"></div>
 L2
 </div>
@@ -701,9 +673,9 @@ L2
 <div class="middle">
 
 <div class="system-buttons">
-<div id="btn-share" class="button disabled">SHR</div>
-<div id="btn-ps" class="button disabled">PS</div>
-<div id="btn-options" class="button disabled">OPT</div>
+<div id="btn-share" class="button">SHR</div>
+<div id="btn-ps" class="button">PS</div>
+<div id="btn-options" class="button">OPT</div>
 </div>
 
 </div>
@@ -712,9 +684,9 @@ L2
 
 <div class="shoulder-buttons">
 
-<div id="r1" class="button bumper disabled">R1</div>
+<div id="r1" class="button bumper">R1</div>
 
-<div id="r2" class="button trigger disabled">
+<div id="r2" class="button trigger">
 <div id="r2-bar" class="trigger-bar"></div>
 R2
 </div>
@@ -726,7 +698,7 @@ R2
     <div class="action-buttons">
         <div id="btn-tri" class="button">▲</div>
         <div id="btn-sq" class="button">■</div>
-        <div id="btn-cir" class="button disabled">●</div>
+        <div id="btn-cir" class="button">●</div>
         <div id="btn-cro" class="button">✕</div>
     </div>
 
@@ -981,30 +953,21 @@ function transmitDataLoop(){
         false
     );
 
-    const gamepadData = {
+    const gamepadData={
 
-    buttons: currentGamepad
-        ? currentGamepad.buttons.map((b, i) => ({
+        buttons:currentGamepad
+            ? currentGamepad.buttons.map(b=>({
+                pressed:b.pressed,
+                value:b.value
+            }))
+            : [],
 
-            // 送信したいボタンだけ true
-            pressed:
-                [0,2,3,12,13,14,15].includes(i)
-                    ? b.pressed
-                    : false,
+        axes:currentGamepad
+            ? currentGamepad.axes
+            : [0,0,0,0],
 
-            value:
-                [0,2,3,12,13,14,15].includes(i)
-                    ? b.value
-                    : 0
-        }))
-        : [],
-
-    axes: currentGamepad
-        ? currentGamepad.axes
-        : [0,0,0,0],
-
-    customButtons: customButtonStates
-};
+        customButtons:customButtonStates
+    };
 
     ws.send(JSON.stringify(gamepadData));
 }
