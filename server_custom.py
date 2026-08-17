@@ -25,7 +25,12 @@ NUCLEO_PORT_TX = 8080         # マイコンへのデータ送信ポート番号
 NUCLEO_PORT_RX = 4000         # マイコンからのデータ受信ポート番号
 
 # マイコンと通信する際のパケット種別を定義
-PACKET_TYPE = {"GAMEPAD_DATA": 1, "PING": 2, "PONG": 3}
+PACKET_TYPE = {
+    "GAMEPAD_DATA": 1,
+    "PING": 2,
+    "PONG": 3,
+    "ODOMETRY_DATA": 4
+}
 
 # --- ロガーの設定 ---
 # ログの出力レベルやフォーマットを設定
@@ -65,6 +70,15 @@ async def broadcast_ping(rtt):
         message = json.dumps({'type': 'mcu_ping', 'rtt': rtt})
         # asyncio.gatherを使い、全てのクライアントへの送信処理を並行して効率的に行う
         await asyncio.gather(*(client.send(message) for client in connected_clients))
+
+async def broadcast_odom(message):
+    """
+    オドメトリデータをUIへ送信
+    """
+    if connected_clients:
+        await asyncio.gather(
+            *(client.send(message) for client in connected_clients)
+        )
 
 def send_to_nucleo(gamepad_data, transport):
     """
@@ -184,17 +198,36 @@ class UdpProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data, addr):
         """UDPデータグラムを受信したときに呼ばれる。"""
-        # 送信元がマイコンで、かつPongパケットであるかを確認
+
+    # ---------- PONG ----------
         if addr[0] == NUCLEO_IP and data and data[0] == PACKET_TYPE["PONG"]:
-            if len(data) >= 9: # パケットサイズが正しいか確認
+            if len(data) >= 9:
                 try:
-                    # 受信データから送信時刻をアンパック
-                    _, sent_time = struct.unpack('<Bd', data[:9])
-                    # 現在時刻との差からRTTを計算し、グローバル変数に格納
+                    _, sent_time = struct.unpack("<Bd", data[:9])
                     ping_stats["rtt_ms"] = (time.time() - sent_time) * 1000
                 except struct.error:
                     logger.warning("不正な形式のPONGパケットを受信しました。")
-    
+
+        # ---------- オドメトリ ----------
+        elif addr[0] == NUCLEO_IP and data and data[0] == PACKET_TYPE["ODOMETRY_DATA"]:
+
+            if len(data) >= 13:
+                try:
+                    _, x, y, theta = struct.unpack("<Bfff", data[:13])
+
+                    message = json.dumps({
+                        "type": "odom",
+                        "x": x,
+                        "y": y,
+                        "theta": theta
+                    })
+
+                    asyncio.ensure_future(
+                        broadcast_odom(message)
+                    )
+
+                except struct.error:
+                    logger.warning("不正なオドメトリパケットを受信しました。")
     def error_received(self, exc):
         """データ受信中にエラーが発生したときに呼ばれる。"""
         logger.error(f"UDP受信エラー: {exc}")
@@ -211,9 +244,33 @@ async def main():
     loop = asyncio.get_running_loop()
     
     # UDPの送受信を行うためのエンドポイントを作成
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    sock.setsockopt(
+        socket.SOL_SOCKET,
+        socket.SO_REUSEADDR,
+        1
+    )
+
+    sock.bind(("", NUCLEO_PORT_RX))
+
+
+    mreq = struct.pack(
+        "4sl",
+        socket.inet_aton("239.0.0.1"),
+        socket.INADDR_ANY
+    )
+
+    sock.setsockopt(
+        socket.IPPROTO_IP,
+        socket.IP_ADD_MEMBERSHIP,
+        mreq
+    )
+
+
     transport, protocol = await loop.create_datagram_endpoint(
         lambda: UdpProtocol(),
-        local_addr=(SERVER_HOST, NUCLEO_PORT_RX) 
+        sock=sock
     )
 
     logger.info("--- サーバーが起動しました ---")
