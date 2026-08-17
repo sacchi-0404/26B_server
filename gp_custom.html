@@ -68,7 +68,8 @@ body{
 
     display:flex;
     flex-direction:column;
-    gap:16px;
+
+    gap:12px;
 
     box-shadow:
         0 10px 15px -3px rgba(0,0,0,0.1),
@@ -83,6 +84,8 @@ body{
 }
 
 .status-card{
+    flex:1;
+
     background:rgba(0,0,0,0.35);
     border-radius:18px;
     padding:18px;
@@ -90,6 +93,43 @@ body{
     display:flex;
     flex-direction:column;
     gap:14px;
+}
+
+.top-status{
+    flex-direction:row;
+    gap:20px;
+}
+
+
+.odom-area{
+    width:50%;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:14px;
+}
+
+
+.controller-area{
+    width:50%;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:10px;
+
+    background:rgba(0,0,0,0.25);
+    border-radius:14px;
+    padding:15px;
+}
+
+
+.controller-area #controller-info{
+    font-size:18px;
+    color:#00ffff;
+    font-weight:bold;
+    text-shadow:0 0 8px #00ffff;
+
+    word-break:break-word;
 }
 
 .status-row{
@@ -136,7 +176,10 @@ body{
     font-weight:bold;
     text-shadow:0 0 8px #00ffff;
 
-    word-break:break-word;
+    width:100%;
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:ellipsis;
 }
 
 /* ステータス色 */
@@ -600,43 +643,71 @@ class="w-full text-white bg-blue-600 hover:bg-blue-700 rounded-lg text-sm px-5 p
 
 <div class="left-info-panel">
 
-<div class="info-title">
-SYSTEM STATUS(P1)
+    <!-- 上半分 -->
+    <div class="status-card">
+
+        <!-- 上半分 -->
+<div class="status-card top-status">
+
+    <div class="odom-area">
+
+        <div class="status-row">
+            <div class="status-label">X</div>
+            <div id="odom-x" class="status-value text-green-400">0.00</div>
+        </div>
+
+        <div class="status-row">
+            <div class="status-label">Y</div>
+            <div id="odom-y" class="status-value text-green-400">0.00</div>
+        </div>
+
+        <div class="status-row">
+            <div class="status-label">Yaw</div>
+            <div id="odom-theta" class="status-value text-green-400">0.00</div>
+        </div>
+
+    </div>
+
+
+    <div class="controller-area">
+
+        <div class="controller-title">
+            Controller
+        </div>
+
+        <div id="controller-info">
+            Not Connected
+        </div>
+
+    </div>
+
 </div>
 
-<div class="status-card">
+    <!-- 下半分 -->
+    <div class="status-card">
 
-<div class="status-row">
-<div class="status-label">周期</div>
-<div id="tx-interval" class="status-value text-gray-400">-- Hz</div>
-</div>
+        <div class="status-row">
+            <div class="status-label">周期</div>
+            <div id="tx-interval" class="status-value text-gray-400">-- Hz</div>
+        </div>
 
-<div class="status-row">
-<div class="status-label">Srv Ping</div>
-<div id="ping-value" class="status-value text-gray-400">-- ms</div>
-</div>
+        <div class="status-row">
+            <div class="status-label">Srv Ping</div>
+            <div id="ping-value" class="status-value text-gray-400">-- ms</div>
+        </div>
 
-<div class="status-row">
-<div class="status-label">MCU Ping</div>
-<div id="mcu-ping-value" class="status-value text-gray-400">-- ms</div>
-</div>
+        <div class="status-row">
+            <div class="status-label">MCU Ping</div>
+            <div id="mcu-ping-value" class="status-value text-gray-400">-- ms</div>
 
-</div>
 
-<div class="controller-box">
-
-<div class="controller-title">
-Controller
-</div>
-
-<div id="controller-info">
-Not Connected
-</div>
+    </div>
 
 </div>
 
 </div>
 
+</div>
 <!-- 右半分 GAMEPAD -->
 
 <div class="gamepad-container">
@@ -826,6 +897,7 @@ function connectWebSocket(ip){
     ws.onopen=()=>{
 
         const info=document.getElementById('controller-info');
+        
 
         info.textContent="Connected";
         info.classList.remove('text-red-400');
@@ -861,7 +933,20 @@ function connectWebSocket(ip){
         try{
 
             const data=JSON.parse(event.data);
+            
+            // オドメトリ表示
+            if(data.type==='odom'){
 
+                document.getElementById('odom-x').textContent =
+                    data.x.toFixed(3);
+
+                document.getElementById('odom-y').textContent =
+                    data.y.toFixed(3);
+
+                document.getElementById('odom-theta').textContent =
+                    data.theta.toFixed(3);
+            }
+            
             if(data.type==='pong'){
 
                 clearTimeout(pingTimeout);
@@ -1024,7 +1109,7 @@ function updateGamepadVisual(){
         return;
     }
 
-    info.textContent=gp.id;
+    info.textContent="Connected";
     info.classList.remove('text-red-400');
     info.classList.add('text-green-400');
 
