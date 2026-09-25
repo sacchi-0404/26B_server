@@ -14,9 +14,13 @@
 
 <style>
 
+    :root{
+    --main-bg-color:#4a2028;
+}
+
 body{
     font-family:'Inter',sans-serif;
-    background-color:#1a202c;
+    background-color:var(--main-bg-color);
     color:#e2e8f0;
 
     display:flex;
@@ -32,6 +36,7 @@ body{
     transform-origin:top left;
 
     touch-action:manipulation;
+    
 }
 
 /* 共通 */
@@ -515,14 +520,28 @@ body{
     border-radius:24px;
 }
 
+#custom-controls-page{
+    gap:20px;
+}
+
+#custom-controls-page .left-info-panel{
+    flex-shrink:0;
+}
+
+#custom-controls-page .custom-controls-container{
+    width:430px;
+    height:350px;
+    padding:14px;
+    flex-shrink:0;
+    box-sizing:border-box;
+}
+
 .custom-button-grid{
     display:grid;
     grid-template-columns:repeat(2,1fr);
     gap:20px;
     width:450px;
     align-content:start;
-
-    margin-top:-150px;   /* 上へ40px移動 */
 }
 
 .custom-button{
@@ -559,7 +578,7 @@ body{
 }
 
 /* CAMERA */
-
+/* 
 .camera-container{
     width:832px;
     height:373px;
@@ -577,13 +596,89 @@ body{
     object-fit:cover;
     border-radius:16px;
     background:black;
-}
+} */
 
 h2,h3{
     color:#63b3ed;
     text-shadow:0 0 8px #63b3ed;
 }
 
+/* =========================
+   CAMERA PAGE
+========================= */
+
+.camera-container{
+    width:832px;
+    height:373px;
+
+    background:#2d3748;
+
+    border-radius:24px;
+
+    padding:10px;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    position:relative;
+
+    box-sizing:border-box;
+}
+
+.camera-stream{
+    width:100%;
+    height:100%;
+
+    object-fit:contain;
+
+    border-radius:16px;
+
+    background:#000000;
+}
+
+/* カメラ基準線 */
+
+.camera-crosshair{
+    position:absolute;
+
+    top:10px;
+    left:10px;
+    right:10px;
+    bottom:10px;
+
+    pointer-events:none;
+}
+
+.vertical-line{
+    position:absolute;
+
+    top:0;
+    bottom:0;
+
+    left:50%;
+
+    width:2px;
+
+    background:#00ff00;
+
+    transform:translateX(-50%);
+}
+
+.horizontal-line{
+    position:absolute;
+
+    left:0;
+    right:0;
+
+    top:50%;
+
+    height:2px;
+
+    background:#00ff00;
+
+    transform:translateY(-50%);
+}
 </style>
 </head>
 
@@ -790,37 +885,152 @@ R2
 
 <div id="custom-controls-page" class="page-container hidden">
 
+    <!-- 左半分：情報表示 -->
+    <div class="left-info-panel">
+
+        <div class="status-card">
+
+            <div class="status-card top-status">
+
+                <div class="odom-area">
+
+                    <div class="status-row">
+                        <div class="status-label">X</div>
+                        <div id="custom-odom-x" class="status-value text-green-400">0.00</div>
+                    </div>
+
+                    <div class="status-row">
+                        <div class="status-label">Y</div>
+                        <div id="custom-odom-y" class="status-value text-green-400">0.00</div>
+                    </div>
+
+                    <div class="status-row">
+                        <div class="status-label">Yaw</div>
+                        <div id="custom-odom-theta" class="status-value text-green-400">0.00</div>
+                    </div>
+
+                </div>
+
+                <div class="controller-area">
+
+                    <div class="controller-title">
+                        Controller
+                    </div>
+
+                    <div id="custom-controller-info">
+                        Not Connected
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="status-card">
+
+                <div class="status-row">
+                    <div class="status-label">周期</div>
+                    <div id="custom-tx-interval" class="status-value text-gray-400">
+                        -- Hz
+                    </div>
+                </div>
+
+                <div class="status-row">
+                    <div class="status-label">Srv Ping</div>
+                    <div id="custom-ping-value" class="status-value text-gray-400">
+                        -- ms
+                    </div>
+                </div>
+
+                <div class="status-row">
+                    <div class="status-label">MCU Ping</div>
+                    <div id="custom-mcu-ping-value" class="status-value text-gray-400">
+                        -- ms
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- 右半分：カスタムボタン -->
     <div class="custom-controls-container">
 
         <div class="custom-button-grid">
-            <div class="custom-button" id="custom-btn-1"><span>ローラー</span></div>
-            <div class="custom-button" id="custom-btn-3"><span>バケツ</span></div>
-        </div>
 
-        <div class="lift-buttons">
-            <div class="custom-button" id="custom-btn-5"><span>昇降↑</span></div>
-            <div class="custom-button" id="custom-btn-6"><span>昇降↓</span></div>
+            <div class="custom-button" id="custom-btn-6">
+                <span>Y軸</span>
+            </div>
+
+            <div class="custom-button" id="custom-btn-5">
+                <span>帰還</span>
+            </div>
+
+            <div class="custom-button" id="custom-btn-4">
+                <span>机1</span>
+            </div>
+
+            <!-- <div class="custom-button" id="custom-btn-2">
+                <span>旗1</span>
+            </div> -->
+
+            <div class="custom-button" id="custom-btn-7">
+                <span>停止</span>
+            </div>
+
+            <div class="custom-button" id="custom-btn-2">
+                <span>赤</span>
+            </div>
+
+            <div class="custom-button" id="custom-btn-1">
+                <span>青</span>
+            </div>
+
+
+    </div>
+
+</div>
+
+</div>
+<!-- CAMERA PAGE -->
+
+<div id="camera-page" class="page-container hidden">
+
+    <div class="camera-container">
+
+        <img
+            id="camera-stream"
+            class="camera-stream"
+            src="http://192.168.11.50:81/stream">
+
+        <div class="camera-crosshair">
+
+            <div class="vertical-line"></div>
+
+            <div class="horizontal-line"></div>
+
         </div>
 
     </div>
 
 </div>
-</div>
 
 <!-- CAMERA PAGE -->
 
-<div id="camera-page" class="page-container hidden">
+<!-- <div id="camera-page" class="page-container hidden">
 
 <div class="camera-container">
 
 <img
-id="camera-stream"
-class="camera-stream"
-src="http://192.168.11.8:81/stream">
+    id="camera-stream"
+    class="camera-stream"
+    src="http://192.168.11.8:81/stream">
 
 </div>
 
-</div>
+</div> -->
 
 <script>
 
@@ -832,7 +1042,31 @@ let transmissionTimestamps=[];
 
 let currentGamepad=null;
 
-let customButtonStates=new Array(6).fill(false);
+let customButtonStates=new Array(10).fill(false);
+
+let currentBackgroundColor='red';
+
+function setBackgroundColor(color){
+
+    if(color==='red'){
+
+        document.documentElement.style.setProperty(
+            '--main-bg-color',
+            '#4a2028'
+        );
+
+        currentBackgroundColor='red';
+
+    }else if(color==='blue'){
+
+        document.documentElement.style.setProperty(
+            '--main-bg-color',
+            '#202f4a'
+        );
+
+        currentBackgroundColor='blue';
+    }
+}
 
 /* =========================
    ステータス
@@ -841,15 +1075,18 @@ let customButtonStates=new Array(6).fill(false);
 const statusElements={
 
     txInterval:[
-        document.getElementById('tx-interval')
+        document.getElementById('tx-interval'),
+        document.getElementById('custom-tx-interval')
     ],
 
     pingValue:[
-        document.getElementById('ping-value')
+        document.getElementById('ping-value'),
+        document.getElementById('custom-ping-value')
     ],
 
     mcuPingValue:[
-        document.getElementById('mcu-ping-value')
+        document.getElementById('mcu-ping-value'),
+        document.getElementById('custom-mcu-ping-value')
     ]
 };
 
@@ -896,37 +1133,51 @@ function connectWebSocket(ip){
 
     ws.onopen=()=>{
 
-        const info=document.getElementById('controller-info');
-        
+    const infos=[
+        document.getElementById('controller-info'),
+        document.getElementById('custom-controller-info')
+    ];
 
+    infos.forEach(info=>{
         info.textContent="Connected";
         info.classList.remove('text-red-400');
         info.classList.add('text-green-400');
+    });
 
-        pingIntervalId=setInterval(sendPing,500);
-    };
+    pingIntervalId=setInterval(sendPing,500);
+};
 
     ws.onclose=()=>{
 
-        const info=document.getElementById('controller-info');
+    const infos=[
+        document.getElementById('controller-info'),
+        document.getElementById('custom-controller-info')
+    ];
 
+    infos.forEach(info=>{
         info.textContent="Disconnected";
         info.classList.remove('text-green-400');
         info.classList.add('text-red-400');
+    });
 
-        if(pingIntervalId){
-            clearInterval(pingIntervalId);
-        }
-    };
+    if(pingIntervalId){
+        clearInterval(pingIntervalId);
+    }
+};
 
     ws.onerror=()=>{
 
-        const info=document.getElementById('controller-info');
+    const infos=[
+        document.getElementById('controller-info'),
+        document.getElementById('custom-controller-info')
+    ];
 
+    infos.forEach(info=>{
         info.textContent="Connection Error";
         info.classList.remove('text-green-400');
         info.classList.add('text-red-400');
-    };
+    });
+};
 
     ws.onmessage=(event)=>{
 
@@ -937,6 +1188,7 @@ function connectWebSocket(ip){
             // オドメトリ表示
             if(data.type==='odom'){
 
+                // ゲームパッドページ
                 document.getElementById('odom-x').textContent =
                     data.x.toFixed(3);
 
@@ -944,6 +1196,17 @@ function connectWebSocket(ip){
                     data.y.toFixed(3);
 
                 document.getElementById('odom-theta').textContent =
+                    data.theta.toFixed(3);
+
+
+                // カスタムコントロールページ
+                document.getElementById('custom-odom-x').textContent =
+                    data.x.toFixed(3);
+
+                document.getElementById('custom-odom-y').textContent =
+                    data.y.toFixed(3);
+
+                document.getElementById('custom-odom-theta').textContent =
                     data.theta.toFixed(3);
             }
             
@@ -1039,20 +1302,21 @@ function transmitDataLoop(){
     );
 
     const gamepadData={
+    controllerType:"0",
 
-        buttons:currentGamepad
-            ? currentGamepad.buttons.map(b=>({
-                pressed:b.pressed,
-                value:b.value
-            }))
-            : [],
+    buttons:currentGamepad
+        ? currentGamepad.buttons.map(b=>({
+            pressed:b.pressed,
+            value:b.value
+        }))
+        : [],
 
-        axes:currentGamepad
-            ? currentGamepad.axes
-            : [0,0,0,0],
+    axes:currentGamepad
+        ? currentGamepad.axes
+        : [0,0,0,0],
 
-        customButtons:customButtonStates
-    };
+    customButtons:customButtonStates
+};
 
     ws.send(JSON.stringify(gamepadData));
 }
@@ -1097,21 +1361,28 @@ function updateGamepadVisual(){
 
     currentGamepad=gp;
 
-    const info=document.getElementById('controller-info');
+    const infos=[
+    document.getElementById('controller-info'),
+    document.getElementById('custom-controller-info')
+];
 
-    if(!gp){
+if(!gp){
 
+    infos.forEach(info=>{
         info.textContent="Not Connected";
         info.classList.remove('text-green-400');
         info.classList.add('text-red-400');
+    });
 
-        requestAnimationFrame(updateGamepadVisual);
-        return;
-    }
+    requestAnimationFrame(updateGamepadVisual);
+    return;
+}
 
+infos.forEach(info=>{
     info.textContent="Connected";
     info.classList.remove('text-red-400');
     info.classList.add('text-green-400');
+});
 
     moveStick('left-stick-dot',gp.axes[0],gp.axes[1]);
     moveStick('right-stick-dot',gp.axes[2],gp.axes[3]);
@@ -1151,7 +1422,7 @@ function updateGamepadVisual(){
 
 function setupCustomButtons(){
 
-    for(let i=1;i<=6;i++){
+    for(let i=1;i<=10;i++){
 
         const button=document.getElementById(`custom-btn-${i}`);
 
@@ -1159,17 +1430,27 @@ function setupCustomButtons(){
 
         const updateState=(isPressed)=>{
 
-            customButtonStates[i-1]=isPressed;
+    customButtonStates[i-1]=isPressed;
 
-            if(isPressed){
+    if(isPressed){
 
-                button.classList.add('pressed');
+        button.classList.add('pressed');
 
-            }else{
+        // 赤ボタン
+        if(i===2){
+            setBackgroundColor('red');
+        }
 
-                button.classList.remove('pressed');
-            }
-        };
+        // 青ボタン
+        if(i===1){
+            setBackgroundColor('blue');
+        }
+
+    }else{
+
+        button.classList.remove('pressed');
+    }
+};
 
         button.addEventListener('mousedown',(e)=>{
             e.preventDefault();
@@ -1230,13 +1511,22 @@ function scaleUI(){
     document.body.style.top=`${top}px`;
 }
 
+
+
 /* =========================
    MENU
 ========================= */
 
-const menuIcon=document.getElementById('menu-icon');
-const sideMenu=document.getElementById('side-menu');
-const overlay=document.getElementById('overlay');
+const menuIcon = document.getElementById('menu-icon');
+const sideMenu = document.getElementById('side-menu');
+const overlay = document.getElementById('overlay');
+
+const pages = {
+    'gamepad-page': document.getElementById('gamepad-page'),
+    'custom-controls-page': document.getElementById('custom-controls-page'),
+    'camera-page': document.getElementById('camera-page')
+};
+
 
 function toggleMenu(){
 
@@ -1245,42 +1535,113 @@ function toggleMenu(){
     sideMenu.classList.toggle('open');
 
     overlay.classList.toggle('active');
-
-    document.querySelectorAll('.page-container').forEach(c=>{
-        c.classList.toggle('menu-open');
-    });
 }
 
-menuIcon.addEventListener('click',toggleMenu);
-overlay.addEventListener('click',toggleMenu);
 
-const pages={
-    'gamepad-page':document.getElementById('gamepad-page'),
-    'custom-controls-page':document.getElementById('custom-controls-page'),
-    'camera-page':document.getElementById('camera-page')
-};
+/* メニューアイコン */
+
+menuIcon.addEventListener('click',()=>{
+
+    toggleMenu();
+
+});
+
+
+/* 背景を押したらメニューを閉じる */
+
+overlay.addEventListener('click',()=>{
+
+    toggleMenu();
+
+});
+
+
+/* ページ切り替え */
 
 document.querySelectorAll('#navigation .nav-link').forEach(link=>{
 
     link.addEventListener('click',()=>{
 
-        const targetPageId=link.dataset.page;
+        const targetPageId = link.dataset.page;
+
+
+        /* 全ページを隠す */
 
         Object.values(pages).forEach(page=>{
+
             page.classList.add('hidden');
+
         });
+
+
+        /* 選択したページだけ表示 */
 
         pages[targetPageId].classList.remove('hidden');
 
+
+        /* メニューの選択状態 */
+
         document.querySelectorAll('#navigation .nav-link').forEach(nav=>{
+
             nav.classList.remove('active');
+
         });
 
         link.classList.add('active');
 
+
+/* =========================
+   カメラページを開いたとき
+========================= */
+
+if(targetPageId === 'camera-page'){
+
+    const camera =
+        document.getElementById('camera-stream');
+
+    /* 一度切断 */
+    camera.src = '';
+
+    /* 少し待ってから再接続 */
+    setTimeout(()=>{
+
+        camera.src =
+            'http://192.168.11.50:81/stream';
+
+    },100);
+}
+
+        // if(targetPageId === 'camera-page'){
+
+        //     const camera =
+        //         document.getElementById('camera-stream');
+
+        //     /* 一度切断 */
+
+        //     camera.src = '';
+
+        //     /* 少し待ってから再接続 */
+
+        //     setTimeout(()=>{
+
+        //         camera.src =
+        //             'http://192.168.11.8:81/stream';
+
+        //     },100);
+
+        // }
+
+
+        /* メニューを閉じる */
+
         toggleMenu();
+
     });
+
 });
+
+
+/* 再接続ボタン */
 
 document.getElementById('reconnect-btn')
 .addEventListener('click',()=>{
@@ -1290,6 +1651,7 @@ document.getElementById('reconnect-btn')
     );
 
     toggleMenu();
+
 });
 
 /* =========================
@@ -1297,6 +1659,9 @@ document.getElementById('reconnect-btn')
 ========================= */
 
 window.addEventListener("DOMContentLoaded",()=>{
+
+    // デフォルトは赤
+    setBackgroundColor('red');
 
     scaleUI();
 
