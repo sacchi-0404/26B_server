@@ -222,7 +222,7 @@ class UdpProtocol(asyncio.DatagramProtocol):
                         "theta": theta
                     })
 
-                    asyncio.ensure_future(
+                    asyncio.create_task(
                         broadcast_odom(message)
                     )
 
@@ -256,9 +256,9 @@ async def main():
 
 
     mreq = struct.pack(
-        "4sl",
+        "4s4s",
         socket.inet_aton("239.0.0.1"),
-        socket.INADDR_ANY
+        socket.inet_aton(local_ip)
     )
 
     sock.setsockopt(
